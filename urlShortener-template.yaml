@@ -2,8 +2,10 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: URL shortener
 Mappings:
   assets:
-    s3:
-      bucket: walter-url-shortener
+    us-east-1: 
+      s3Bucket: walter-url-shortener
+    sa-east-1: 
+      s3Bucket: walter-url-shortener-sp
     lambdasKeys:
       createFunction: lambdaFunctions/urlShortenerCreateFunction.zip
       deleteFunction: lambdaFunctions/urlShortenerDeleteFunction.zip
@@ -23,7 +25,7 @@ Resources:
       Handler: urlShortenerCreate.lambda_handler
       Role: !GetAtt IAMRoleShortAPICreate.Arn
       Code:
-        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
         S3Key: !FindInMap [assets, lambdasKeys, createFunction]
       FunctionName: "URLShortenerCreate"
       Runtime: "python3.12"
@@ -41,7 +43,7 @@ Resources:
       Handler: urlShortenerDelete.lambda_handler
       Role: !GetAtt IAMRoleShortAPIDelete.Arn
       Code:
-        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
         S3Key: !FindInMap [assets, lambdasKeys, deleteFunction]
       FunctionName: "URLShortenerDelete"
       Runtime: "python3.12"
@@ -59,7 +61,7 @@ Resources:
       Handler: urlShortenerGet.lambda_handler
       Role: !GetAtt IAMRoleShortAPIGet.Arn
       Code:
-        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
         S3Key: !FindInMap [assets, lambdasKeys, getFunction]
       FunctionName: "URLShortenerGet"
       Runtime: "python3.12"
@@ -77,7 +79,7 @@ Resources:
       Handler: urlShortenerRedirect.lambda_handler
       Role: !GetAtt IAMRoleShortAPIGet.Arn
       Code:
-        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
         S3Key: !FindInMap [assets, lambdasKeys, redirectFunction]
       FunctionName: "URLShortenerRedirect"
       Runtime: "python3.12"
