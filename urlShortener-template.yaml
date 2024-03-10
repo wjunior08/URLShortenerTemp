@@ -522,3 +522,7 @@ Resources:
         S3Key: !FindInMap [assets, lambdasKeys, lambdaLayerBoto3]
       Description: "Lambda layer with boto3 1.34.59 version"
       LayerName: boto3-13459
+Outputs:
+  Endpoint:
+    Description: The endpoint of the api and redirect URL
+    Value: !If [CreateCloudfrontResources, !GetAtt CloudFrontDistributionShortURL.DomainName, !GetAtt ApiGatewayV2ApiShortURL.ApiEndpoint]
