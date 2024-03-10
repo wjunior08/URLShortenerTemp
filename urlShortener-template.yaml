@@ -342,7 +342,6 @@ Resources:
     Properties:
       ApiId: !Ref ApiGatewayV2ApiShortURL
       Description: "First deploy of shortURL"
-      StageName: !Ref ApiGatewayV2StageShortUrlBeta
   ApiGatewayV2StageShortUrlBeta:
     Type: 'AWS::ApiGatewayV2::Stage'
     UpdateReplacePolicy: "Delete"
@@ -351,6 +350,7 @@ Resources:
       StageName: $default
       Description: Default Stage
       ApiId: !Ref ApiGatewayV2ApiShortURL
+      DeploymentId: !Ref ApiGatewayV2DeploymentShortURL
   SSMParameterShortURLTableName:
     Type: AWS::SSM::Parameter
     Properties:
