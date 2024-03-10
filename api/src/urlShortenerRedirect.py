@@ -34,10 +34,23 @@ def lambda_handler(event, context):
 
     match operation:
         case 'GET':
-            result = dynamo.query(TableName = shortURLTableName, ExpressionAttributeValues={':shortedURL': {'S': event["requestContext"]["path"].split("/")[-1]},}, KeyConditionExpression = 'shortedURL = :shortedURL')
+            try:
+                shortedURL = event["requestContext"]["path"].split("/")[-1]
+                result = dynamo.query(TableName = shortURLTableName, ExpressionAttributeValues={':shortedURL': {'S': shortedURL},}, KeyConditionExpression = 'shortedURL = :shortedURL')
+            except Exception as e:
+                print(e)
+                return {
+                        "isBase64Encoded": False,
+                        "statusCode": 500,
+                        "headers": { "Content-Type": "application/json"},
+                        "body": "Server error"
+                        
+                    }
             redirectURL = "https://www.mercadolivre.com.br/404"
+            
             if result["Count"] > 0 : 
                 redirectURL = result["Items"][0]["fullURL"]["S"]
+            
             return  {
                     "isBase64Encoded": False,
                     "statusCode": 302,

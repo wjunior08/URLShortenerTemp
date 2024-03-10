@@ -49,7 +49,6 @@ def lambda_handler(event, context):
     
     try:
         result = dynamo.query(TableName = shortURLTableName, ExpressionAttributeValues={':shortedURL': {'S': shortedURL},}, KeyConditionExpression = 'shortedURL = :shortedURL')
-        body = ddb_deserialize(result["Items"][0])
     except Exception as e:
         print(e)
         return {
@@ -62,6 +61,7 @@ def lambda_handler(event, context):
         
     
     if result["Count"] > 0 : 
+        body = ddb_deserialize(result["Items"][0])
         return  {
                 "isBase64Encoded": False,
                 "statusCode": 200,
