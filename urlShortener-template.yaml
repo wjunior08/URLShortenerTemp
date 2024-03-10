@@ -11,6 +11,22 @@ Mappings:
       deleteFunction: lambdaFunctions/urlShortenerDeleteFunction.zip
       getFunction: lambdaFunctions/urlShortenerGetFunction.zip
       redirectFunction: lambdaFunctions/urlShortenerRedirectFunction.zip
+      lambdaLayerBoto3: lambdaFunctions/boto3-13459.zip
+    cloudfront:
+      cacheDisabledManagedPolicy: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+      allViewerExceptHostHeaderPolicy: b689b0a8-53d0-40ab-baf2-68738e2966ac
+Parameters:
+  useCloudfront:
+    Type: String
+    Default: No
+    AllowedValues:
+      - Yes
+      - No
+    Description: Use CLoudfront and cloudFront function to serve redirect URL?
+Conditions:
+  CreateCloudfrontResources: !Equals 
+    - !Ref useCloudfront
+    - Yes
 Resources:
   LambdaFunctioinShortAPIURLCreate:
     Type: AWS::Lambda::Function
@@ -22,11 +38,14 @@ Resources:
       Environment:
         Variables:
           SSM_SHORTURL_TABLE_PARAMETER_NAME: !Ref SSMParameterShortURLTableName
+          SSM_SHORTURL_KEYVALUE_PARAMETER_ARN: !If [CreateCloudfrontResources, !Ref SSMParameterShortURLKeyValueArn, "False"]
       Handler: urlShortenerCreate.lambda_handler
       Role: !GetAtt IAMRoleShortAPICreate.Arn
       Code:
         S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
         S3Key: !FindInMap [assets, lambdasKeys, createFunction]
+      Layers:
+        - !Ref LambdaLayerVersionBoto3
       FunctionName: "URLShortenerCreate"
       Runtime: "python3.12"
       Timeout: 3
@@ -40,11 +59,14 @@ Resources:
       Environment:
         Variables:
           SSM_SHORTURL_TABLE_PARAMETER_NAME: !Ref SSMParameterShortURLTableName
+          SSM_SHORTURL_KEYVALUE_PARAMETER_ARN: !If [CreateCloudfrontResources, !Ref SSMParameterShortURLKeyValueArn, "False"]
       Handler: urlShortenerDelete.lambda_handler
       Role: !GetAtt IAMRoleShortAPIDelete.Arn
       Code:
         S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
         S3Key: !FindInMap [assets, lambdasKeys, deleteFunction]
+      Layers:
+        - !Ref LambdaLayerVersionBoto3
       FunctionName: "URLShortenerDelete"
       Runtime: "python3.12"
       Timeout: 3
@@ -102,6 +124,15 @@ Resources:
             - "dynamodb:PutItem"
             Effect: "Allow"
         PolicyName: "ShortURLPutItemPermission"
+      - PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Resource: !If [CreateCloudfrontResources, !GetAtt CloudFrontKeyValueStoreShortURL.Arn, !Ref "AWS::NoValue"]
+            Action:
+            - "cloudfront-keyvaluestore:PutKey"
+            - "cloudfront-keyvaluestore:DescribeKeyValueStore"
+            Effect: "Allow"
+        PolicyName: "ShortURLPutItemCFKVSPermission" 
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -127,6 +158,15 @@ Resources:
             - "dynamodb:DeleteItem"
             Effect: "Allow"
         PolicyName: "ShortURLDeleteItemPermission"
+      - PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Resource: !If [CreateCloudfrontResources, !GetAtt CloudFrontKeyValueStoreShortURL.Arn, !Ref "AWS::NoValue"]
+            Action:
+            - "cloudfront-keyvaluestore:DeleteKey"
+            - "cloudfront-keyvaluestore:DescribeKeyValueStore"
+            Effect: "Allow"
+        PolicyName: "ShortURLDeleteItemCFKVSPermission" 
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -181,6 +221,7 @@ Resources:
           Effect: "Allow"
         - Resource: 
           - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParameterShortURLTableName}
+          - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParameterShortURLKeyValueArn}
           Action:
           - "ssm:GetParameter"
           Effect: "Allow"
@@ -358,3 +399,126 @@ Resources:
       Description: 'ShortURL dynamo table Name'
       Type: String
       Value: !Ref DynamoDBTableShortURLs
+  CloudFrontDistributionShortURL:
+    Type: "AWS::CloudFront::Distribution"
+    Condition: CreateCloudfrontResources
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      DistributionConfig:
+        Origins:
+        - DomainName: !Select [1, !Split ["https://", !GetAtt ApiGatewayV2ApiShortURL.ApiEndpoint]] 
+          Id: !Ref ApiGatewayV2ApiShortURL
+          CustomOriginConfig:
+            OriginKeepaliveTimeout: 5
+            OriginReadTimeout: 30
+            OriginSSLProtocols:
+            - "TLSv1.2"
+            HTTPSPort: 443
+            HTTPPort: 80
+            OriginProtocolPolicy: "https-only"
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        PriceClass: "PriceClass_All"
+        DefaultCacheBehavior:
+          Compress: true
+          FunctionAssociations:
+          - FunctionARN: !GetAtt CloudFrontFunctionShortURLRedirect.FunctionARN
+            EventType: "viewer-request"
+          TargetOriginId: !Ref ApiGatewayV2ApiShortURL
+          ViewerProtocolPolicy: "allow-all"
+          AllowedMethods:
+          - "HEAD"
+          - "DELETE"
+          - "POST"
+          - "GET"
+          - "OPTIONS"
+          - "PUT"
+          - "PATCH"
+          CachedMethods:
+          - "HEAD"
+          - "GET"
+          OriginRequestPolicyId: !FindInMap [assets, cloudfront, allViewerExceptHostHeaderPolicy]
+          CachePolicyId: !FindInMap [assets, cloudfront, cacheDisabledManagedPolicy]
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: "http2"
+        CacheBehaviors:
+        - Compress: true
+          TargetOriginId: !Ref ApiGatewayV2ApiShortURL
+          ViewerProtocolPolicy: "allow-all"
+          TrustedSigners: []
+          AllowedMethods:
+          - "HEAD"
+          - "DELETE"
+          - "POST"
+          - "GET"
+          - "OPTIONS"
+          - "PUT"
+          - "PATCH"
+          PathPattern: "/api/*"
+          OriginRequestPolicyId: !FindInMap [assets, cloudfront, allViewerExceptHostHeaderPolicy]
+          CachePolicyId: !FindInMap [assets, cloudfront, cacheDisabledManagedPolicy]
+  CloudFrontFunctionShortURLRedirect:
+    Type: AWS::CloudFront::Function
+    Condition: CreateCloudfrontResources
+    Properties:
+      AutoPublish: true
+      FunctionCode: !Sub |
+        import cf from 'cloudfront';
+
+        const kvsId = '${CloudFrontKeyValueStoreShortURL.Id}';
+
+        // This fails if the key value store is not associated with the function
+        const kvsHandle = cf.kvs(kvsId);
+
+        let value = "Not found" // Default value
+        async function handler(event) {
+            const key = event.request.uri.split('/')[1]
+            let value = "https://www.mercadolivre.com.br/404"
+            try {
+                value = await kvsHandle.get(key);
+            } catch (err) {
+                console.log("Kvs key lookup failed for "+key+": "+err);
+            }
+            var response = {
+                statusCode: 302,
+                statusDescription: 'OK',
+                headers: {
+                    "location": { "value": value }
+                }
+            };
+            return response;
+        }
+      FunctionConfig: 
+        Comment: "Redirects to the URL stored in the KVS"
+        KeyValueStoreAssociations: 
+        - KeyValueStoreARN: !GetAtt CloudFrontKeyValueStoreShortURL.Arn
+        Runtime: "cloudfront-js-2.0"
+      Name: shortURLRedirect
+  CloudFrontKeyValueStoreShortURL:
+    Type: 'AWS::CloudFront::KeyValueStore'
+    Condition: CreateCloudfrontResources
+    Properties:
+      Comment: "Stores ShortURL and fullURL"
+      Name: 'shortURLKeyValeuStore'
+  SSMParameterShortURLKeyValueArn:
+    Type: AWS::SSM::Parameter
+    Condition: CreateCloudfrontResources
+    Properties:
+      Name: '/shortURL/keyValueId'
+      Description: 'ShortURL cloudfront key value ID'
+      Type: String
+      Value: !GetAtt CloudFrontKeyValueStoreShortURL.Arn
+  LambdaLayerVersionBoto3:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleArchitectures: 
+        - x86_64 
+      CompatibleRuntimes: 
+        - python3.12
+      Content: 
+        S3Bucket: !FindInMap [assets, !Ref "AWS::Region", s3Bucket]
+        S3Key: !FindInMap [assets, lambdasKeys, lambdaLayerBoto3]
+      Description: "Lambda layer with boto3 1.34.59 version"
+      LayerName: boto3-13459

@@ -11,24 +11,26 @@ ssm = boto3.client('ssm')
 parameterName = os.environ['SSM_SHORTURL_TABLE_PARAMETER_NAME']
 shortURLTableName = ssm.get_parameter(Name=parameterName)["Parameter"]["Value"]
 
+parameterName = os.environ['SSM_SHORTURL_KEYVALUE_PARAMETER_ARN']
+useKVS = False
+if(parameterName != "False"):
+    useKVS = True
+    shortURLKeyValueARN = ssm.get_parameter(Name=parameterName)["Parameter"]["Value"]
+    keyvaluestore = boto3.client('cloudfront-keyvaluestore')
+
 def ddb_deserialize(r, type_deserializer = TypeDeserializer()):
     return type_deserializer.deserialize({"M": r})
 
-def lambda_handler(event, context):
-    '''Demonstrates a simple HTTP endpoint using API Gateway. You have full
-    access to the request and response payload, including headers and
-    status code.
+def deleteKeyOnKVS(shortedURL, fullURL):
+    describe = keyvaluestore.describe_key_value_store(KvsARN=shortURLKeyValueARN)
+    etag = describe["ETag"]
+    keyvaluestore.delete_key(KvsARN=shortURLKeyValueARN, Key=shortedURL, IfMatch=etag)
+    return True
 
-    To scan a DynamoDB table, make a GET request with the TableName as a
-    query string parameter. To put, update, or delete an item, make a POST,
-    PUT, or DELETE request respectively, passing in the payload to the
-    DynamoDB API as a JSON body.
-    '''
-    print("Received event: " + json.dumps(event))
+def lambda_handler(event, context):
 
     operation = event['httpMethod']
 
-    
     if operation != 'DELETE':
         print("ERROR: operation "+operation+" on the delete function")
         return {
@@ -49,6 +51,8 @@ def lambda_handler(event, context):
     try:
         result = dynamo.delete_item(TableName = shortURLTableName,  Key={'shortedURL': {'S': shortedURL}}) 
         result = result["ResponseMetadata"]["HTTPStatusCode"]
+        if(useKVS): 
+            keyvaluestore.delete_key(Id=shortURLKeyValueId, Key=shortedURL)
     except Exception as e:
         print(e)
     if result == 200:
