@@ -1,6 +1,6 @@
-# URLShortener
-# Functionless URL Shortener
-This is a serveless URL shortener app. It uses AWS as cloud and Api gateway, Lambda, DynamoDB and cloudFront as services. The app outputs an enpoint that are used in two cases:
+# Serverless URL Shortener
+This is a serveless URL shortener app. It uses AWS as cloud and Api gateway, Lambda, DynamoDB and cloudFront as services. 
+The app outputs an enpoint that are used in two cases:
 
 1. Final user will enter endpoint/{shortKey} in a web browser and will be redirect to the fullURL
 1. The administration API is available at endpoint/api and have the following methods:
@@ -9,6 +9,7 @@ This is a serveless URL shortener app. It uses AWS as cloud and Api gateway, Lam
     - ```DELETE``` Deletes an Item and requires the shortKey parameter on query. Ex.: endpoint/api?shortKey=ABCDE
 
 ## Architecture 
+![architecture draw](./assets/shortURL.png)
 
 ### Services Used
 * <a href="https://aws.amazon.com/api-gateway/" target="_blank">Amazon API Gateway</a>
