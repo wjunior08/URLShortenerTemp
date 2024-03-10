@@ -1,0 +1,358 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: URL shortener
+Mappings:
+  assets:
+    s3:
+      bucket: walter-url-shortener
+    lambdasKeys:
+      createFunction: lambdaFunctions/urlShortenerCreateFunction.zip
+      deleteFunction: lambdaFunctions/urlShortenerDeleteFunction.zip
+      getFunction: lambdaFunctions/urlShortenerGetFunction.zip
+      redirectFunction: lambdaFunctions/urlShortenerRedirectFunction.zip
+Resources:
+  LambdaFunctioinShortAPIURLCreate:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      MemorySize: 128
+      Description: "url shortener create function"
+      Environment:
+        Variables:
+          SSM_SHORTURL_TABLE_PARAMETER_NAME: !Ref SSMParameterShortURLTableName
+      Handler: urlShortenerCreate.lambda_handler
+      Role: !GetAtt IAMRoleShortAPICreate.Arn
+      Code:
+        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Key: !FindInMap [assets, lambdasKeys, createFunction]
+      FunctionName: "URLShortenerCreate"
+      Runtime: "python3.12"
+      Timeout: 3
+  LambdaFunctioinShortAPIURLDelete:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      MemorySize: 128
+      Description: "url shortener delete function"
+      Environment:
+        Variables:
+          SSM_SHORTURL_TABLE_PARAMETER_NAME: !Ref SSMParameterShortURLTableName
+      Handler: urlShortenerDelete.lambda_handler
+      Role: !GetAtt IAMRoleShortAPIDelete.Arn
+      Code:
+        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Key: !FindInMap [assets, lambdasKeys, deleteFunction]
+      FunctionName: "URLShortenerDelete"
+      Runtime: "python3.12"
+      Timeout: 3
+  LambdaFunctioinShortAPIURLGet:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      MemorySize: 128
+      Description: "url shortener get function"
+      Environment:
+        Variables:
+          SSM_SHORTURL_TABLE_PARAMETER_NAME: !Ref SSMParameterShortURLTableName
+      Handler: urlShortenerGet.lambda_handler
+      Role: !GetAtt IAMRoleShortAPIGet.Arn
+      Code:
+        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Key: !FindInMap [assets, lambdasKeys, getFunction]
+      FunctionName: "URLShortenerGet"
+      Runtime: "python3.12"
+      Timeout: 3
+  LambdaFunctioinShortAPIURLRedirect:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      MemorySize: 128
+      Description: "url shortener redirect function"
+      Environment:
+        Variables:
+          SSM_SHORTURL_TABLE_PARAMETER_NAME: !Ref SSMParameterShortURLTableName
+      Handler: urlShortenerRedirect.lambda_handler
+      Role: !GetAtt IAMRoleShortAPIGet.Arn
+      Code:
+        S3Bucket: !FindInMap [assets, s3, bucket]
+        S3Key: !FindInMap [assets, lambdasKeys, redirectFunction]
+      FunctionName: "URLShortenerRedirect"
+      Runtime: "python3.12"
+      Timeout: 3
+  IAMRoleShortAPICreate:
+    Type: "AWS::IAM::Role"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      Path: "/service-role/"
+      ManagedPolicyArns:
+      - Ref: "IAMPolicyShortAPILambdaBasicExecution"
+      RoleName: "shortAPICreate-role"
+      Policies:
+      - PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Resource: !GetAtt DynamoDBTableShortURLs.Arn
+            Action:
+            - "dynamodb:PutItem"
+            Effect: "Allow"
+        PolicyName: "ShortURLPutItemPermission"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+  IAMRoleShortAPIDelete:
+    Type: "AWS::IAM::Role"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      Path: "/service-role/"
+      ManagedPolicyArns:
+      - Ref: "IAMPolicyShortAPILambdaBasicExecution"
+      RoleName: "shortAPIDelete-role"
+      Policies:
+      - PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Resource: !GetAtt DynamoDBTableShortURLs.Arn
+            Action:
+            - "dynamodb:DeleteItem"
+            Effect: "Allow"
+        PolicyName: "ShortURLDeleteItemPermission"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+  IAMRoleShortAPIGet:
+    Type: "AWS::IAM::Role"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      Path: "/service-role/"
+      ManagedPolicyArns:
+      - Ref: "IAMPolicyShortAPILambdaBasicExecution"
+      RoleName: "shortAPIGet-role"
+      Policies:
+      - PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Resource: !GetAtt DynamoDBTableShortURLs.Arn
+            Action:
+            - "dynamodb:Query"
+            Effect: "Allow"
+        PolicyName: "ShortURLQueryPermission"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+  IAMPolicyShortAPILambdaBasicExecution:
+    Type: "AWS::IAM::ManagedPolicy"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      ManagedPolicyName: "ShortURLAPIAWSLambdaBasicExecutionRole"
+      Path: "/service-role/"
+      Description: "IAM role to Lambda creat Logs"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource: "arn:aws:logs:us-east-1:409740678659:*"
+          Action: "logs:CreateLogGroup"
+          Effect: "Allow"
+        - Resource:
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/URLShortener*:*
+          Action:
+          - "logs:CreateLogStream"
+          - "logs:PutLogEvents"
+          Effect: "Allow"
+        - Resource: 
+          - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParameterShortURLTableName}
+          Action:
+          - "ssm:GetParameter"
+          Effect: "Allow"
+  DynamoDBTableShortURLs:
+    Type: "AWS::DynamoDB::Table"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      TableName: "shortURLs"
+      AttributeDefinitions:
+      - AttributeType: "S"
+        AttributeName: "shortedURL"
+      BillingMode: "PROVISIONED"
+      ProvisionedThroughput:
+        WriteCapacityUnits: 1
+        ReadCapacityUnits: 1
+      KeySchema:
+      - KeyType: "HASH"
+        AttributeName: "shortedURL"
+      DeletionProtectionEnabled: false
+      TableClass: "STANDARD"
+      TimeToLiveSpecification:
+        Enabled: false
+  ApplicationAutoScalingScalableTargetDynamoDBTableShortURLsWrite:
+    Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      ScalableDimension: "dynamodb:table:WriteCapacityUnits"
+      MinCapacity: 1
+      ResourceId: !Sub table/${DynamoDBTableShortURLs}
+      ServiceNamespace: "dynamodb"
+      MaxCapacity: 10
+  ApplicationAutoScalingScalableTargetDynamoDBTableShortURLsRead:
+    Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      ScalableDimension: "dynamodb:table:ReadCapacityUnits"
+      MinCapacity: 1
+      ResourceId: !Sub table/${DynamoDBTableShortURLs}
+      ServiceNamespace: "dynamodb"
+      MaxCapacity: 10
+  ApiGatewayV2ApiShortURL:
+    Type: "AWS::ApiGatewayV2::Api"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      RouteSelectionExpression: "$request.method $request.path"
+      Description: "short URL api"
+      ProtocolType: "HTTP"
+      DisableExecuteApiEndpoint: false
+      Name: "ShortURL-API"
+  ApiGatewayV2IntegrationGet:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      Description: API get shortURL get lambda integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: GET
+      IntegrationUri: !GetAtt LambdaFunctioinShortAPIURLGet.Arn
+      PayloadFormatVersion: 1.0
+  ApiGatewayV2IntegrationDelete:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      Description: API Delete shortURL get lambda integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: DELETE
+      IntegrationUri: !GetAtt LambdaFunctioinShortAPIURLDelete.Arn
+      PayloadFormatVersion: 1.0
+  ApiGatewayV2IntegrationPost:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      Description: API post shortURL get lambda integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri: !GetAtt LambdaFunctioinShortAPIURLCreate.Arn
+      PayloadFormatVersion: 1.0
+  ApiGatewayV2IntegrationRedirect:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      Description: API Delete shortURL get lambda integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: Get
+      IntegrationUri: !GetAtt LambdaFunctioinShortAPIURLRedirect.Arn
+      PayloadFormatVersion: 1.0
+  ApiGatewayV2RouteGet:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      RouteKey: 'GET /api'
+      Target: !Sub integrations/${ApiGatewayV2IntegrationGet}
+  ApiGatewayV2RouteDelete:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      RouteKey: 'DELETE /api'
+      Target: !Sub integrations/${ApiGatewayV2IntegrationDelete}
+  ApiGatewayV2RoutePost:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      RouteKey: 'POST /api'
+      Target: !Sub integrations/${ApiGatewayV2IntegrationPost}
+  ApiGatewayV2RouteRedirect:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      RouteKey: 'GET /{shortedURL}'
+      Target: !Sub integrations/${ApiGatewayV2IntegrationRedirect}
+  LambdaPermissionAPIGet:
+    Type: "AWS::Lambda::Permission"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      FunctionName: !GetAtt "LambdaFunctioinShortAPIURLGet.Arn"
+      Action: "lambda:InvokeFunction"
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2ApiShortURL}/*/*/api
+      Principal: "apigateway.amazonaws.com"
+  LambdaPermissionAPICreate:
+    Type: "AWS::Lambda::Permission"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      FunctionName: !GetAtt "LambdaFunctioinShortAPIURLCreate.Arn"
+      Action: "lambda:InvokeFunction"
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2ApiShortURL}/*/*/api
+      Principal: "apigateway.amazonaws.com"
+  LambdaPermissionAPIDelete:
+    Type: "AWS::Lambda::Permission"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      FunctionName: !GetAtt "LambdaFunctioinShortAPIURLDelete.Arn"
+      Action: "lambda:InvokeFunction"
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2ApiShortURL}/*/*/api
+      Principal: "apigateway.amazonaws.com"
+  LambdaPermissionAPIRedirect:
+    Type: "AWS::Lambda::Permission"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      FunctionName: !GetAtt "LambdaFunctioinShortAPIURLRedirect.Arn"
+      Action: "lambda:InvokeFunction"
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2ApiShortURL}/*/*/{shortedURL}
+      Principal: "apigateway.amazonaws.com"
+  ApiGatewayV2DeploymentShortURL:
+    Type: "AWS::ApiGatewayV2::Deployment"
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    DependsOn:
+      - ApiGatewayV2RouteGet
+      - ApiGatewayV2RouteDelete
+      - ApiGatewayV2RoutePost
+      - ApiGatewayV2RouteRedirect
+    Properties:
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      Description: "First deploy of shortURL"
+      StageName: !Ref ApiGatewayV2StageShortUrlBeta
+  ApiGatewayV2StageShortUrlBeta:
+    Type: 'AWS::ApiGatewayV2::Stage'
+    UpdateReplacePolicy: "Delete"
+    DeletionPolicy: "Delete"
+    Properties:
+      StageName: $default
+      Description: Default Stage
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+  SSMParameterShortURLTableName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: '/shortURL/tableName'
+      Description: 'ShortURL dynamo table Name'
+      Type: String
+      Value: !Ref DynamoDBTableShortURLs
