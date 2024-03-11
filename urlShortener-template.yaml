@@ -233,14 +233,14 @@ Resources:
       TableName: "shortURLs"
       AttributeDefinitions:
       - AttributeType: "S"
-        AttributeName: "shortedURL"
+        AttributeName: "shortKey"
       BillingMode: "PROVISIONED"
       ProvisionedThroughput:
         WriteCapacityUnits: 1
         ReadCapacityUnits: 1
       KeySchema:
       - KeyType: "HASH"
-        AttributeName: "shortedURL"
+        AttributeName: "shortKey"
       DeletionProtectionEnabled: false
       TableClass: "STANDARD"
       TimeToLiveSpecification:
@@ -456,7 +456,7 @@ Resources:
           - "OPTIONS"
           - "PUT"
           - "PATCH"
-          PathPattern: "/api/*"
+          PathPattern: "/api*"
           OriginRequestPolicyId: !FindInMap [assets, cloudfront, allViewerExceptHostHeaderPolicy]
           CachePolicyId: !FindInMap [assets, cloudfront, cacheDisabledManagedPolicy]
   CloudFrontFunctionShortURLRedirect:
@@ -472,23 +472,26 @@ Resources:
         // This fails if the key value store is not associated with the function
         const kvsHandle = cf.kvs(kvsId);
 
-        let value = "Not found" // Default value
+        let value = "https://www.mercadolivre.com.br/404" // Default value
         async function handler(event) {
             const key = event.request.uri.split('/')[1]
-            let value = "https://www.mercadolivre.com.br/404"
-            try {
-                value = await kvsHandle.get(key);
-            } catch (err) {
-                console.log("Kvs key lookup failed for "+key+": "+err);
-            }
-            var response = {
-                statusCode: 302,
-                statusDescription: 'OK',
-                headers: {
-                    "location": { "value": value }
+            if(await kvsHandle.exists(key)){
+                try {
+                    value = await kvsHandle.get(key);
+                } catch (err) {
+                    console.log("Kvs key lookup failed for "+key+": "+err);
+                    return event.request;
                 }
-            };
-            return response;
+                var response = {
+                    statusCode: 302,
+                    statusDescription: 'OK',
+                    headers: {
+                        "location": { "value": value }
+                    }
+                };
+                return response;
+            }
+            return event.request;
         }
       FunctionConfig: 
         Comment: "Redirects to the URL stored in the KVS"

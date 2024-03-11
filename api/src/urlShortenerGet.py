@@ -33,29 +33,29 @@ def lambda_handler(event, context):
         return {
                         "isBase64Encoded": False,
                         "statusCode": 405,
-                        "body": "http method not supported",
+                        "body": json.dumps({"message": "http method not supported"}),
                     }
             
-    if "queryStringParameters" not in event or "shortedURL" not in event["queryStringParameters"]:
+    if "queryStringParameters" not in event or "shortKey" not in event["queryStringParameters"]:
         print("Shorte: shortedURL no present on request")
         return {
                 "isBase64Encoded": False,
                 "statusCode": 400,
-                "body": "shortedURL parameter is mandatory",
+                "body": json.dumps({"message": "shortKey parameter is mandatory"}),
             }
     
-    shortedURL = event["queryStringParameters"]["shortedURL"]
+    shortKey = event["queryStringParameters"]["shortKey"]
     body = ""
     
     try:
-        result = dynamo.query(TableName = shortURLTableName, ExpressionAttributeValues={':shortedURL': {'S': shortedURL},}, KeyConditionExpression = 'shortedURL = :shortedURL')
+        result = dynamo.query(TableName = shortURLTableName, ExpressionAttributeValues={':shortKey': {'S': shortKey},}, KeyConditionExpression = 'shortKey = :shortKey')
     except Exception as e:
         print(e)
         return {
                 "isBase64Encoded": False,
                 "statusCode": 500,
                 "headers": { "Content-Type": "application/json"},
-                "body": "Server error"
+                "body": json.dumps({"message": "Server error"})
                 
             }
         
@@ -74,6 +74,6 @@ def lambda_handler(event, context):
                 "isBase64Encoded": False,
                 "statusCode": 404,
                 "headers": { "Content-Type": "application/json"},
-                "body": "ShortedURL not found"
+                "body": json.dumps({"message": "shortKey not found"})
                 
             }

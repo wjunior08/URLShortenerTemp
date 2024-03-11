@@ -21,10 +21,10 @@ if(parameterName != "False"):
 def ddb_deserialize(r, type_deserializer = TypeDeserializer()):
     return type_deserializer.deserialize({"M": r})
 
-def putKeyOnKVS(shortedURL, fullURL):
+def putKeyOnKVS(shortKey, fullURL):
     describe = keyvaluestore.describe_key_value_store(KvsARN=shortURLKeyValueARN)
     etag = describe["ETag"]
-    keyvaluestore.put_key(KvsARN=shortURLKeyValueARN, Key=shortedURL, Value=fullURL, IfMatch=etag)
+    keyvaluestore.put_key(KvsARN=shortURLKeyValueARN, Key=shortKey, Value=fullURL, IfMatch=etag)
     return True
 
 def lambda_handler(event, context):
@@ -36,38 +36,38 @@ def lambda_handler(event, context):
         return {
                     "isBase64Encoded": False,
                     "statusCode": 405,
-                    "body": "http method not supported",
+                    "body": json.dumps({"Message": "http method not supported"}),
                 }
     
     if "queryStringParameters" not in event or "fullURL" not in event["queryStringParameters"]:
         return {
                 "isBase64Encoded": False,
                 "statusCode": 400,
-                "body": "fullURL parameter is mandatory",
+                "body":  json.dumps({"Message": "fullURL parameter is mandatory"}),
             }
     
     fullURL = event["queryStringParameters"]["fullURL"]
     auxNum = int(time.time())%10000000
-    shortedURL = base64.urlsafe_b64encode(auxNum.to_bytes(3)).decode()
+    shortKey = base64.urlsafe_b64encode(auxNum.to_bytes(3)).decode()
     
     try:
-         result = dynamo.put_item(TableName = shortURLTableName,  Item={'shortedURL': {'S': shortedURL}, 'fullURL': {'S': fullURL}},)
+         result = dynamo.put_item(TableName = shortURLTableName,  Item={'shortKey': {'S': shortKey}, 'fullURL': {'S': fullURL}},)
          result = result["ResponseMetadata"]["HTTPStatusCode"]
          if(useKVS):
-            putKeyOnKVS(shortedURL, fullURL)
+            putKeyOnKVS(shortKey, fullURL)
     except Exception as e:
         print(e)
         return {
                 "isBase64Encoded": False,
                 "statusCode": 500,
                 "headers": { "Content-Type": "application/json"},
-                "body": "Server error"
+                "body": json.dumps({"Message": "Server error"})
                 
             }
         
     
     if result == 200:
-        body = {"shortedURL": shortedURL, "fullURL": fullURL}
+        body = {"shortKey": shortKey, "fullURL": fullURL}
         return  {
                 "isBase64Encoded": False,
                 "statusCode": 200,
@@ -79,7 +79,7 @@ def lambda_handler(event, context):
                 "isBase64Encoded": False,
                 "statusCode": 500,
                 "headers": { "Content-Type": "application/json"},
-                "body": "Server error"
+                "body": json.dumps({"Message": "Server error"})
                 
             }
     

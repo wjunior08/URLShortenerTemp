@@ -1,0 +1,116 @@
+openapi: "3.0.1"
+info:
+  title: "ShortURL-API"
+  description: "short URL api"
+  version: "2024-03-10 21:24:55UTC"
+servers:
+- url: "https://gizokboorj.execute-api.sa-east-1.amazonaws.com/{basePath}"
+  variables:
+    basePath:
+      default: ""
+paths:
+  /api:
+    get:
+      description: "Get a shortened Url Value"
+      parameters:
+        - name: shortKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully return the shortKey and fullURL
+          content:
+            application/json:
+              schema:
+                type: object
+                  required:
+                    - shortKey
+                    - fullURL
+
+        '400':
+          description: Invalid request
+          content:
+            text/html:
+              schema:
+                properties:   
+                    message: string
+        '404':
+          description: Invalid request shortKey doens't exists
+          content:
+            text/html:
+              schema:
+                properties:   
+                    message: string
+    post:
+      description: "Short a URL and return the shortener key"
+      parameters:
+        - name: fullURL
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully create the shortKey and return shortKey and fullURL
+          content:
+            application/json:
+              schema:
+                type: object
+                  required:
+                    - shortKey
+                    - fullURL
+        '400':
+          description: Invalid request
+          content:
+            text/html:
+              schema:
+                properties:   
+                    message: string         
+     
+    delete:
+      description: "Delete an ShortURL using it's key"
+      parameters:
+        - name: shortKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully delete the shortURL and return shortKey it
+          content:
+            text/html:
+              schema:
+                properties:   
+                    message: string 
+        '400':
+          description: Invalid request
+          content:
+            text/html:
+              schema:
+                properties:   
+                  message:
+                    message: string     
+  /{shortKey}:
+    get:
+      description: "Redirect an ShortURL to the fuillURL"
+      parameters:
+        - name: shortKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Successfully redirected the shortURL
+
+        '400':
+          description: Invalid request
+          content:
+            text/html:
+              schema:
+                properties:   
+                  message:
+                    message: string   
