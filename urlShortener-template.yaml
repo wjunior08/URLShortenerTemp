@@ -22,10 +22,19 @@ Parameters:
     AllowedValues:
       - Yes
       - No
+  EnableAPiAuth:
+    Type: String
+    Default: No
+    AllowedValues:
+      - Yes
+      - No
     Description: Use CLoudfront and cloudFront function to serve redirect URL?
 Conditions:
   CreateCloudfrontResources: !Equals 
     - !Ref useCloudfront
+    - Yes
+  CreateAuthResources: !Equals 
+    - !Ref EnableAPiAuth
     - Yes
 Resources:
   LambdaFunctioinShortAPIURLCreate:
@@ -317,18 +326,24 @@ Resources:
       ApiId: !Ref ApiGatewayV2ApiShortURL
       RouteKey: 'GET /api'
       Target: !Sub integrations/${ApiGatewayV2IntegrationGet}
+      AuthorizationType: !If [CreateAuthResources, "JWT", !Ref "AWS::NoValue"]
+      AuthorizerId: !If [CreateAuthResources, !Ref ApiGatewayV2AuthorizerShortURL, !Ref "AWS::NoValue"]
   ApiGatewayV2RouteDelete:
     Type: 'AWS::ApiGatewayV2::Route'
     Properties:
       ApiId: !Ref ApiGatewayV2ApiShortURL
       RouteKey: 'DELETE /api'
       Target: !Sub integrations/${ApiGatewayV2IntegrationDelete}
+      AuthorizationType: !If [CreateAuthResources, "JWT", !Ref "AWS::NoValue"]
+      AuthorizerId: !If [CreateAuthResources, !Ref ApiGatewayV2AuthorizerShortURL, !Ref "AWS::NoValue"]
   ApiGatewayV2RoutePost:
     Type: 'AWS::ApiGatewayV2::Route'
     Properties:
       ApiId: !Ref ApiGatewayV2ApiShortURL
       RouteKey: 'POST /api'
       Target: !Sub integrations/${ApiGatewayV2IntegrationPost}
+      AuthorizationType: !If [CreateAuthResources, "JWT", !Ref "AWS::NoValue"]
+      AuthorizerId: !If [CreateAuthResources, !Ref ApiGatewayV2AuthorizerShortURL, !Ref "AWS::NoValue"]
   ApiGatewayV2RouteRedirect:
     Type: 'AWS::ApiGatewayV2::Route'
     Properties:
@@ -525,7 +540,79 @@ Resources:
         S3Key: !FindInMap [assets, lambdasKeys, lambdaLayerBoto3]
       Description: "Lambda layer with boto3 1.34.59 version"
       LayerName: boto3-13459
+  CognitoUserPoolShortURL:
+    Type: AWS::Cognito::UserPool
+    Condition: CreateAuthResources
+    Properties:
+      UserPoolName: shortUrlPool
+      AutoVerifiedAttributes: 
+        - email
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: CreateAuthResources
+    DependsOn: CognitoUserPoolResourceServer
+    Properties:
+      ClientName: shortUrlClient
+      UserPoolId: !Ref CognitoUserPoolShortURL
+      GenerateSecret: True
+      CallbackURLs:
+        - https://walter-url-shortener-sp.s3.sa-east-1.amazonaws.com/showtoken.html
+      SupportedIdentityProviders:
+        - COGNITO
+      AllowedOAuthFlowsUserPoolClient: True
+      AllowedOAuthFlows: 
+        - implicit
+      AllowedOAuthScopes: 
+        - shortUrl/api
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Condition: CreateAuthResources
+    Properties:
+      UserPoolId: !Ref CognitoUserPoolShortURL
+      Domain: !Join ['-', ['shorturl', !Select [0, !Split [-, !Select [2, !Split [/, !Ref AWS::StackId ]]]]]]
+  CognitoUserPoolResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Condition: CreateAuthResources
+    Properties:
+      Identifier: shortUrl
+      Name: shortUrl
+      UserPoolId: !Ref CognitoUserPoolShortURL
+      Scopes:
+        - ScopeName: api
+          ScopeDescription: API access
+  ApiGatewayV2AuthorizerShortURL:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Condition: CreateAuthResources
+    Properties: 
+      ApiId: !Ref ApiGatewayV2ApiShortURL
+      AuthorizerType: JWT
+      IdentitySource: 
+        - '$request.header.Authorization'
+      JwtConfiguration: 
+        Audience: 
+        - !Ref CognitoUserPoolClient
+        Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPoolShortURL}
+      Name: shorturl-cognito-jwt-authorizer
 Outputs:
-  Endpoint:
+  CognitoUserPoolId:
+    Condition: CreateAuthResources
+    Value: !Ref CognitoUserPoolShortURL
+  CognitoUserPoolClientId:
+    Condition: CreateAuthResources
+    Value: !Ref CognitoUserPoolClient
+  AuthenticationDomain: 
+    Description: Use this URL to authenticate and retrive a token
+    Condition: CreateAuthResources
+    Value: !Sub https://${CognitoUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${CognitoUserPoolClient}&response_type=token&scope=shortUrl%2Fapi&redirect_uri=https%3A%2F%2Fwalter-url-shortener-sp.s3.sa-east-1.amazonaws.com%2Fshowtoken.html
+  APIEndpoint:
     Description: The endpoint of the api and redirect URL
     Value: !If [CreateCloudfrontResources, !GetAtt CloudFrontDistributionShortURL.DomainName, !GetAtt ApiGatewayV2ApiShortURL.ApiEndpoint]

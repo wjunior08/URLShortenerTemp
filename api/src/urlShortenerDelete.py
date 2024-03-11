@@ -43,9 +43,9 @@ def lambda_handler(event, context):
         return {
                 "isBase64Encoded": False,
                 "statusCode": 400,
-                "body": json.dumps({"message": "shortedURL parameter is mandatory"}),
+                "body": json.dumps({"message": "shortKey parameter is mandatory"}),
             }
-    shortKey = event["queryStringParameters"]["shortedURL"]
+    shortKey = event["queryStringParameters"]["shortKey"]
    
     
     try:
@@ -61,7 +61,7 @@ def lambda_handler(event, context):
                 "isBase64Encoded": False,
                 "statusCode": 200,
                 "headers": { "Content-Type": "application/json"},
-                "body": json.dumps(body)
+                "body": body
         }
         
     return {
