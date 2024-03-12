@@ -133,15 +133,18 @@ Resources:
             - "dynamodb:PutItem"
             Effect: "Allow"
         PolicyName: "ShortURLPutItemPermission"
-      - PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-          - Resource: !If [CreateCloudfrontResources, !GetAtt CloudFrontKeyValueStoreShortURL.Arn, !Ref "AWS::NoValue"]
-            Action:
-            - "cloudfront-keyvaluestore:PutKey"
-            - "cloudfront-keyvaluestore:DescribeKeyValueStore"
-            Effect: "Allow"
-        PolicyName: "ShortURLPutItemCFKVSPermission" 
+      - !If
+          - CreateCloudfrontResources
+          - PolicyName: ShortURLPutItemCFKVSPermission
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Effect: Allow
+                  Action:
+                  - "cloudfront-keyvaluestore:PutKey"
+                  - "cloudfront-keyvaluestore:DescribeKeyValueStore"
+                  Resource: !GetAtt CloudFrontKeyValueStoreShortURL.Arn
+          - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -167,15 +170,18 @@ Resources:
             - "dynamodb:DeleteItem"
             Effect: "Allow"
         PolicyName: "ShortURLDeleteItemPermission"
-      - PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-          - Resource: !If [CreateCloudfrontResources, !GetAtt CloudFrontKeyValueStoreShortURL.Arn, !Ref "AWS::NoValue"]
-            Action:
-            - "cloudfront-keyvaluestore:DeleteKey"
-            - "cloudfront-keyvaluestore:DescribeKeyValueStore"
-            Effect: "Allow"
-        PolicyName: "ShortURLDeleteItemCFKVSPermission" 
+      - !If
+          - CreateCloudfrontResources
+          - PolicyName: ShortURLDeleteItemCFKVSPermission
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Effect: Allow
+                  Action:
+                  - "cloudfront-keyvaluestore:DeleteKey"
+                  - "cloudfront-keyvaluestore:DescribeKeyValueStore"
+                  Resource: !GetAtt CloudFrontKeyValueStoreShortURL.Arn
+          - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -230,7 +236,10 @@ Resources:
           Effect: "Allow"
         - Resource: 
           - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParameterShortURLTableName}
-          - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParameterShortURLKeyValueArn}
+          - !If
+              - CreateCloudfrontResources
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParameterShortURLKeyValueArn}
+              - !Ref AWS::NoValue
           Action:
           - "ssm:GetParameter"
           Effect: "Allow"
@@ -407,6 +416,10 @@ Resources:
       Description: Default Stage
       ApiId: !Ref ApiGatewayV2ApiShortURL
       DeploymentId: !Ref ApiGatewayV2DeploymentShortURL
+      RouteSettings:
+        POST /api:
+          ThrottlingRateLimit: 10
+          ThrottlingBurstLimit: 10
   SSMParameterShortURLTableName:
     Type: AWS::SSM::Parameter
     Properties:
