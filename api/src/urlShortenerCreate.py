@@ -47,14 +47,23 @@ def lambda_handler(event, context):
             }
     
     fullURL = event["queryStringParameters"]["fullURL"]
-    auxNum = int(time.time())%10000000
-    shortKey = base64.urlsafe_b64encode(auxNum.to_bytes(3)).decode()
+    auxNum = int(time.time()*10)%1000000000
+    shortKey = base64.urlsafe_b64encode(auxNum.to_bytes(4)).decode()
     
     try:
          result = dynamo.put_item(TableName = shortURLTableName,  Item={'shortKey': {'S': shortKey}, 'fullURL': {'S': fullURL}},)
          result = result["ResponseMetadata"]["HTTPStatusCode"]
          if(useKVS):
             putKeyOnKVS(shortKey, fullURL)
+    except dynamo.exceptions.ConditionalCheckFailedException:
+        print("too many requests")
+        return {
+                "isBase64Encoded": False,
+                "statusCode": 429,
+                "headers": { "Content-Type": "application/json", "Retry-After": 1},
+                "body": json.dumps({"Message": "Too many requests"})
+                
+            }
     except Exception as e:
         print(e)
         return {
